@@ -52,5 +52,5 @@ if(CONFIG_SOFTWARE_RTC_SUPPORT)
     list(APPEND COMPONENT_ADD_INCLUDEDIRS bm8563)
 endif()
 
-set(COMPONENT_REQUIRES "mbedtls" "esp-cryptoauthlib" "fatfs")
+set(COMPONENT_REQUIRES "mbedtls" "fatfs")
 register_component()
