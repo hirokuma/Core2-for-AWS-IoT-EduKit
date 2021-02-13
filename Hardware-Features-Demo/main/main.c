@@ -56,7 +56,7 @@ void app_main(void)
     sdcardTest();
 
     // repeat resetting...
-    // xTaskCreatePinnedToCore(speakerTask, "speak", 4096*2, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(speakerTask, "speak", 4096*2, NULL, 4, NULL, 1);
     
     rtc_date_t date;
     date.year = 2020;
@@ -189,7 +189,7 @@ static void speakerTask(void *arg) {
     Speaker_WriteBuff((uint8_t *)music, 120264, portMAX_DELAY);
     Core2ForAWS_Speaker_Enable(0);
     Speaker_Deinit();
-    xTaskCreatePinnedToCore(microphoneTask, "microphoneTask", 4096*2, NULL, 1, NULL, 0);
+    // xTaskCreatePinnedToCore(microphoneTask, "microphoneTask", 4096*2, NULL, 1, NULL, 0);
     vTaskDelete(NULL);
 }
 
