@@ -15,12 +15,6 @@
 #include "ft6336u.h"
 #endif
 
-#if CONFIG_SOFTWARE_SK6812_SUPPORT
-#include "sk6812.h"
-#define SK6812_SIDE_LEFT 0
-#define SK6812_SIDE_RIGHT 1
-#endif
-
 #if CONFIG_SOFTWARE_BUTTON_SUPPORT
 #include "button.h"
 #endif
@@ -55,20 +49,6 @@ void Core2ForAWS_LED_Enable(uint8_t enable);
 #endif
 
 void Core2ForAWS_Motor_SetStrength(uint8_t strength);
-
-#if CONFIG_SOFTWARE_SK6812_SUPPORT
-void Core2ForAWS_Sk6812_Init();
-
-void Core2ForAWS_Sk6812_SetColor(uint16_t pos, uint32_t color);
-
-void Core2ForAWS_Sk6812_SetSideColor(uint8_t side, uint32_t color);
-
-void Core2ForAWS_Sk6812_SetBrightness(uint8_t brightness);
-
-void Core2ForAWS_Sk6812_Show();
-
-void Core2ForAWS_Sk6812_Clear();
-#endif
 
 #if CONFIG_SOFTWARE_SDCARD_SUPPORT
 esp_err_t Core2ForAWS_Sdcard_Init(const char* mount, sdmmc_card_t** out_card);

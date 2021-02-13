@@ -14,17 +14,25 @@
 #include "esp_vfs_fat.h"
 #include "driver/gpio.h"
 #include "driver/spi_common.h"
+#include "sdmmc_cmd.h"
 
 #include "core2forAWS.h"
 #include "lvgl/lvgl.h"
 #include "ft6336u.h"
+#include "speaker.h"
 #include "bm8563.h"
+#include "mpu6886.h"
 #include "axp192.h"
 #include "cryptoauthlib.h"
 #include "i2c_device.h"
+#include "mic_fft_test.h"
 
 static void brightness_slider_event_cb(lv_obj_t * slider, lv_event_t event);
 static void strength_slider_event_cb(lv_obj_t * slider, lv_event_t event);
+static void led_event_handler(lv_obj_t * obj, lv_event_t event);
+
+static void speakerTask(void *arg);
+static void sdcardTest();
 
 // in disp_spi.c
 extern SemaphoreHandle_t xGuiSemaphore;
@@ -44,6 +52,11 @@ void app_main(void)
     Core2ForAWS_LCD_Init();
     Core2ForAWS_Button_Init();
     BM8563_Init();
+    MPU6886_Init();
+    sdcardTest();
+
+    // repeat resetting...
+    // xTaskCreatePinnedToCore(speakerTask, "speak", 4096*2, NULL, 4, NULL, 1);
     
     rtc_date_t date;
     date.year = 2020;
@@ -61,14 +74,30 @@ void app_main(void)
     lv_obj_set_pos(time_label, 10, 5);
     lv_label_set_align(time_label, LV_LABEL_ALIGN_LEFT);
 
+    lv_obj_t * mpu6886_lable = lv_label_create(lv_scr_act(), NULL);
+    lv_obj_align(mpu6886_lable, time_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
     lv_obj_t * touch_label = lv_label_create(lv_scr_act(), NULL);
-    lv_obj_align(touch_label, time_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align(touch_label, mpu6886_lable, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
 
     lv_obj_t * pmu_label = lv_label_create(lv_scr_act(), NULL);
     lv_obj_align(pmu_label, touch_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
 
+    lv_obj_t * led_label = lv_label_create(lv_scr_act(), NULL);
+    lv_obj_align(led_label, pmu_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_label_set_text(led_label, "Power LED");
+    
+    lv_obj_t *sw1 = lv_switch_create(lv_scr_act(), NULL);
+    lv_obj_set_size(sw1, 60, 20);
+    lv_obj_align(sw1, led_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+    lv_obj_set_event_cb(sw1, led_event_handler);
+    lv_switch_on(sw1, LV_ANIM_ON);
+
+    Core2ForAWS_LED_Enable(1);
+
     lv_obj_t * brightness_label = lv_label_create(lv_scr_act(), NULL);
-    lv_obj_align(brightness_label, pmu_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align(brightness_label, led_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
     lv_label_set_text(brightness_label, "Screen brightness");
 
     lv_obj_t * brightness_slider = lv_slider_create(lv_scr_act(), NULL);
@@ -101,6 +130,13 @@ void app_main(void)
         lv_label_set_text(time_label, label_stash);
         xSemaphoreGive(xGuiSemaphore);
 
+        float ax, ay, az;
+        MPU6886_GetAccelData(&ax, &ay, &az);
+        sprintf(label_stash, "MPU6886 Acc x: %.2f, y: %.2f, z: %.2f\r\n", ax, ay, az);
+        xSemaphoreTake(xGuiSemaphore, portMAX_DELAY);
+        lv_label_set_text(mpu6886_lable, label_stash);
+        xSemaphoreGive(xGuiSemaphore);
+
         uint16_t x, y;
         bool press;
         FT6336U_GetTouch(&x, &y, &press);
@@ -115,6 +151,16 @@ void app_main(void)
         xSemaphoreGive(xGuiSemaphore);
         
         vTaskDelay(pdMS_TO_TICKS(100));
+
+        if (Button_WasPressed(button_left)) {
+            printf("button left press\r\n");
+        }
+        if (Button_WasReleased(button_middle)) {
+            printf("button middle release\r\n");
+        }
+        if (Button_WasLongPress(button_right, 500)) {
+            printf("button right long pressed\r\n");
+        }
     }
 }
 
@@ -128,4 +174,72 @@ static void strength_slider_event_cb(lv_obj_t * slider, lv_event_t event) {
     if(event == LV_EVENT_VALUE_CHANGED) {
         Core2ForAWS_Motor_SetStrength(lv_slider_get_value(slider));
     }
+}
+
+static void led_event_handler(lv_obj_t * obj, lv_event_t event) {
+    if(event == LV_EVENT_VALUE_CHANGED) {
+        Core2ForAWS_LED_Enable(lv_switch_get_state(obj));
+    }
+}
+
+static void speakerTask(void *arg) {
+    Speaker_Init();
+    Core2ForAWS_Speaker_Enable(1);
+    extern const unsigned char music[120264];
+    Speaker_WriteBuff((uint8_t *)music, 120264, portMAX_DELAY);
+    Core2ForAWS_Speaker_Enable(0);
+    Speaker_Deinit();
+    xTaskCreatePinnedToCore(microphoneTask, "microphoneTask", 4096*2, NULL, 1, NULL, 0);
+    vTaskDelete(NULL);
+}
+
+/*
+//  note: Because the SD card and the screen use the same spi bus so if want use sd card api, must
+xSemaphoreTake(spi_mutex, portMAX_DELAY);
+// call spi poll to solve spi share bug (maybe a bug)
+spi_poll();
+// call sd card api
+xSemaphoreGive(spi_mutex);
+*/
+static void sdcardTest() {
+    #define MOUNT_POINT "/sdcard"
+    sdmmc_card_t* card;
+    esp_err_t ret;
+
+    ret = Core2ForAWS_Sdcard_Init(MOUNT_POINT, &card);
+
+    if (ret != ESP_OK) {
+        ESP_LOGE("sdcard", "Failed to initialize the sd card");
+        return;
+    } 
+
+    ESP_LOGI("sdcard", "Success to initialize the sd card");
+    sdmmc_card_print_info(stdout, card);
+
+    xSemaphoreTake(spi_mutex, portMAX_DELAY);
+    spi_poll();
+    char test_file[] =  MOUNT_POINT"/hello.txt";
+    ESP_LOGI("sdcard", "Write file to %s", test_file);
+    FILE* f = fopen(test_file, "w+");
+    if (f == NULL) {
+        ESP_LOGE("sdcard", "Failed to open file for writing");
+        xSemaphoreGive(spi_mutex);
+        return;
+    }
+    ESP_LOGI("sdcard", "Write -> Hello %s!\n", "SD Card");
+    fprintf(f, "Hello %s!\r\n", "SD Card");
+    fclose(f);
+
+    ESP_LOGI("sdcard", "Reading file %s", test_file);
+    f = fopen(test_file, "r");
+    if (f == NULL) {
+        ESP_LOGE("sdcard", "Failed to open file for reading");
+        xSemaphoreGive(spi_mutex);
+        return;
+    }
+    char line[64];
+    fgets(line, sizeof(line), f);
+    fclose(f);
+    ESP_LOGI("sdcard", "Read <- %s", line);
+    xSemaphoreGive(spi_mutex);
 }

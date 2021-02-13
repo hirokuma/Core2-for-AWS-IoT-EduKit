@@ -159,57 +159,6 @@ void Core2ForAWS_PMU_Init(uint16_t ldo2_volt, uint16_t ldo3_volt, uint16_t dc2_v
 /* ==================================================================================================*/
 
 /* ==================================================================================================*/
-/* ----------------------------------------- SK6812 -------------------------------------------------*/
-#if CONFIG_SOFTWARE_SK6812_SUPPORT
-pixel_settings_t px;
-
-void Core2ForAWS_Sk6812_Init() {
-    px.pixel_count = 10;
-    px.brightness = 20;
-    sprintf(px.color_order, "GRBW");
-    px.nbits = 24;
-    px.timings.t0h = (350);
-    px.timings.t0l = (800);
-    px.timings.t1h = (600);
-    px.timings.t1l = (700);
-    px.timings.reset = 80000;
-    px.pixels = (uint8_t *)malloc((px.nbits / 8) * px.pixel_count);
-    neopixel_init(GPIO_NUM_25, RMT_CHANNEL_0);
-    np_clear(&px);
-}
-
-void Core2ForAWS_Sk6812_SetColor(uint16_t pos, uint32_t color) {
-    np_set_pixel_color(&px, pos, color << 8);
-}
-
-void Core2ForAWS_Sk6812_SetSideColor(uint8_t side, uint32_t color) {
-    if (side == SK6812_SIDE_LEFT) {
-        for (uint8_t i = 5; i < 10; i++) {
-            np_set_pixel_color(&px, i, color << 8);
-        }
-    } else {
-        for (uint8_t i = 0; i < 5; i++) {
-            np_set_pixel_color(&px, i, color << 8);
-        }
-    }
-}
-
-void Core2ForAWS_Sk6812_SetBrightness(uint8_t brightness) {
-    px.brightness = brightness;
-}
-
-void Core2ForAWS_Sk6812_Show() {
-    np_show(&px, RMT_CHANNEL_0);
-}
-
-void Core2ForAWS_Sk6812_Clear() {
-    np_clear(&px);
-}
-#endif
-/* ----------------------------------------- End -------------------------------------------------*/
-/* ==================================================================================================*/
-
-/* ==================================================================================================*/
 /* ----------------------------------------- LCD -------------------------------------------------*/
 #if CONFIG_SOFTWARE_ILI9342C_SUPPORT
 SemaphoreHandle_t xGuiSemaphore;

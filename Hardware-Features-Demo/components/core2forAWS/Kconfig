@@ -1,16 +1,10 @@
-menu "Core2 for AWS hardware enable"
+menu "Core2 hardware enable"
     config SOFTWARE_ILI9342C_SUPPORT
         bool "Screen-ILI9342C" 
         default y
         select SOFTWARE_FT6336U_SUPPORT
     config SOFTWARE_FT6336U_SUPPORT
         bool "Screen touch-FT6336U"
-        default y
-    config SOFTWARE_SK6812_SUPPORT
-        bool "RGB-SK6812"
-        default y
-    config SOFTWARE_ATECC608_SUPPORT
-        bool "Encryption chip-ATECC608"
         default y
     config SOFTWARE_BUTTON_SUPPORT
         bool "BUTTON-Touch screen virtual"
